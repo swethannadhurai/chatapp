@@ -35,37 +35,27 @@ export const useChatStore = create((set, get) => ({
   },
 
   sendMessage: async (messageData) => {
-  const { selectedUser } = get();
-  const socket = useAuthStore.getState().socket;
-  const authUser = useAuthStore.getState().authUser;
+    const { selectedUser } = get();
 
-  try {
-    // Save message in DB
-    const res = await axiosInstance.post(
-      `/messages/send/${selectedUser._id}`,
-      messageData
-    );
+    try {
+      // Save message in DB
+      const res = await axiosInstance.post(
+        `/messages/send/${selectedUser._id}`,
+        messageData
+      );
 
-    const savedMessage = res.data;
+      const savedMessage = res.data;
 
-    // ✅ Add message instantly to sender's chat
-    set((state) => ({
-      messages: [...state.messages, savedMessage],
-    }));
+      // ✅ Add message instantly to sender's chat
+      set((state) => ({
+        messages: [...state.messages, savedMessage],
+      }));
 
-    // ✅ Emit socket event so receiver gets it in real time
-    if (socket) {
-      socket.emit("sendMessage", {
-        ...savedMessage,
-        senderId: authUser._id,
-        receiverId: selectedUser._id,
-      });
+      // No need to emit here — backend will emit "newMessage"
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to send message");
     }
-  } catch (error) {
-    toast.error(error.response?.data?.message || "Failed to send message");
-  }
-},
-
+  },
 
   subscribeToMessages: () => {
     const { selectedUser } = get();
@@ -79,14 +69,15 @@ export const useChatStore = create((set, get) => ({
 
     socket.on("newMessage", (newMessage) => {
       const isRelevantMessage =
+        // case 1: I sent message to them
+        (newMessage.senderId.toString() === authUser._id.toString() &&
+          newMessage.receiverId.toString() === selectedUser._id.toString()) ||
+        // case 2: they sent message to me
         (newMessage.senderId.toString() === selectedUser._id.toString() &&
-          newMessage.receiverId.toString() === authUser._id.toString()) ||
-        (newMessage.receiverId.toString() === selectedUser._id.toString() &&
-          newMessage.senderId.toString() === authUser._id.toString());
+          newMessage.receiverId.toString() === authUser._id.toString());
 
       if (!isRelevantMessage) return;
 
-      // ✅ functional update
       set((state) => ({
         messages: [...state.messages, newMessage],
       }));
@@ -100,4 +91,3 @@ export const useChatStore = create((set, get) => ({
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),
 }));
-

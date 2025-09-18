@@ -7,12 +7,13 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "https://magical-wisp-ce12ab.netlify.app",
+    origin: "https://magical-wisp-ce12ab.netlify.app", // frontend URL
     credentials: true,
   },
 });
 
-const userSocketMap = {}; // {userId: socketId}
+// Map of online users: { userId: socketId }
+const userSocketMap = {};
 
 export function getReceiverSocketId(userId) {
   return userSocketMap[userId];
@@ -21,16 +22,17 @@ export function getReceiverSocketId(userId) {
 io.on("connection", (socket) => {
   console.log("✅ A user connected:", socket.id);
 
-  // userId comes from frontend connectSocket()
+  // Get userId from frontend auth
   const userId = socket.handshake.auth.userId;
   if (!userId) return;
 
+  // Save user socket
   userSocketMap[userId] = socket.id;
 
   // Emit online users to all clients
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-  // ✅ Listen for sendMessage event
+  // Listen for optional sendMessage (if you want frontend emit)
   socket.on("sendMessage", (message) => {
     const { senderId, receiverId, text, image } = message;
 
@@ -42,19 +44,20 @@ io.on("connection", (socket) => {
       createdAt: new Date(),
     };
 
-    // Send to receiver if online
+    // Emit to receiver
     const receiverSocketId = userSocketMap[receiverId];
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
     }
 
-    // Also send back to sender (so they see it instantly)
+    // Emit back to sender
     const senderSocketId = userSocketMap[senderId];
     if (senderSocketId) {
       io.to(senderSocketId).emit("newMessage", newMessage);
     }
   });
 
+  // Disconnect handling
   socket.on("disconnect", () => {
     console.log("❌ A user disconnected:", socket.id);
     delete userSocketMap[userId];
@@ -63,4 +66,5 @@ io.on("connection", (socket) => {
 });
 
 export { io, app, server };
+
 
