@@ -75,7 +75,9 @@ export const useAuthStore = create((set, get) => ({
   updateProfile: async (data) => {
     set({ isUpdatingProfile: true });
     try {
-      const res = await axiosInstance.put("/auth/update-profile", data);
+      const res = await axiosInstance.put("/auth/update-profile", data,{
+        withCredentials:true,
+      });
       set({ authUser: res.data });
       toast.success("Profile updated successfully");
     } catch (error) {
@@ -86,23 +88,34 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  connectSocket: () => {
-    const { authUser } = get();
-    if (!authUser || get().socket?.connected) return;
+connectSocket: () => {
+  const { authUser, socket } = get();
+  if (!authUser || socket?.connected) return;
 
-    const socket = io(BASE_URL, {
-      query: { userId: authUser._id },
-    });
-    socket.connect();
+  const newSocket = io(BASE_URL, {
+    auth: { userId: authUser._id }, // use 'auth' instead of 'query'
+    transports: ["websocket"],      // force websocket transport
+  });
 
-    set({ socket });
+  set({ socket: newSocket });
 
-    socket.on("getOnlineUsers", (userIds) => {
-      set({ onlineUsers: userIds });
-    });
-  },
+  newSocket.on("connect", () => {
+    console.log("Connected to Socket.IO server", newSocket.id);
+  });
+
+  newSocket.on("getOnlineUsers", (userIds) => {
+    set({ onlineUsers: userIds });
+  });
+
+  newSocket.on("disconnect", () => {
+    console.log("Socket disconnected");
+  });
+},
+
 
   disconnectSocket: () => {
     if (get().socket?.connected) get().socket.disconnect();
   },
 }));
+
+
