@@ -42,9 +42,9 @@ export const getmessages = async(req,res) =>{
 
 export const sendMessages = async (req, res) => {
   try {
-    const { text, image } = req.body; // ✅ match frontend
+    const { text, image } = req.body; // match frontend
     const { id: receiverId } = req.params;
-    const senderId = req.user._id;
+    const senderId = req.user._id.toString();
 
     let imageUrl;
     if (image) {
@@ -55,15 +55,24 @@ export const sendMessages = async (req, res) => {
     const newMessage = new Message({
       senderId,
       receiverId,
-      text,          // ✅ now defined
+      text,
       image: imageUrl,
     });
 
     await newMessage.save();
 
+    // Get socket IDs
     const receiverSocketId = getReceiverSocketId(receiverId);
+    const senderSocketId = getReceiverSocketId(senderId);
+
+    // Emit to receiver
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
+    }
+
+    // Emit to sender
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("newMessage", newMessage);
     }
 
     res.status(201).json(newMessage);
@@ -72,3 +81,4 @@ export const sendMessages = async (req, res) => {
     return res.status(500).json({ message: "Server Error" });
   }
 };
+
