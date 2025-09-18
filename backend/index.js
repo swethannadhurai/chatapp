@@ -14,7 +14,11 @@ dotenv.config();
 const PORT = process.env.PORT
 const __dirname = path.resolve();
 
-app.use(express.json());
+//app.use(express.json());
+// allow bigger JSON payloads (base64 images)
+app.use(express.json({ limit: "5mb" })); 
+app.use(express.urlencoded({ limit: "5mb", extended: true }));
+
 app.use(cookieParser());
 app.use(cors({
     origin: "https://magical-wisp-ce12ab.netlify.app",
