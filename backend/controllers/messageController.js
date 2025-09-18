@@ -4,45 +4,41 @@ import { io } from "../lib/socket.js";
 import { getReceiverSocketId } from "../lib/socket.js";
 import cloudinary from "../lib/cloudinary.js";
 
-export const getusersForSidebar = async(req, res) =>{
-    try {
-        const loggedInUserId = req.user._id;
-        const filteredUsers = await User.find({_id:{$ne: loggedInUserId}}).select("-password");
+export const getusersForSidebar = async (req, res) => {
+  try {
+    const loggedInUserId = req.user._id;
+    const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select(
+      "-password"
+    );
+    res.status(200).json(filteredUsers);
+  } catch (error) {
+    console.log("Error in getusersForSidebar:", error.message);
+    return res.status(500).json({ message: "Server Error" });
+  }
+};
 
-        res.status(200).json(filteredUsers);
+export const getmessages = async (req, res) => {
+  try {
+    const { id: userToChatId } = req.params;
+    const myId = req.user._id;
 
-    } catch (error) {
-        console.log("Error in getusersForSidebar:", error.message);
-        return res.status(500).json({message: "Server Error"});
-        
-    }
+    const messages = await Message.find({
+      $or: [
+        { senderId: myId, receiverId: userToChatId },
+        { senderId: userToChatId, receiverId: myId },
+      ],
+    });
 
-}
-
-export const getmessages = async(req,res) =>{
-    try {
-        const {id:userToChatId} = req.params;
-        const myId = req.user._id;
-
-        const messages = await Message.find({
-            $or:[
-                {senderId: myId, receiverId: userToChatId},
-                {senderId: userToChatId, receiverId: myId}
-            ]
-        });
-
-        res.status(200).json(messages);
-
-    } catch (error) {
-        console.log("Error in getmessages:", error.message);
-        return res.status(500).json({message: "Server Error"});
-        
-    }
-}
+    res.status(200).json(messages);
+  } catch (error) {
+    console.log("Error in getmessages:", error.message);
+    return res.status(500).json({ message: "Server Error" });
+  }
+};
 
 export const sendMessages = async (req, res) => {
   try {
-    const { text, image } = req.body; // match frontend
+    const { text, image } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id.toString();
 
@@ -61,24 +57,24 @@ export const sendMessages = async (req, res) => {
 
     await newMessage.save();
 
-    // Get socket IDs
+    // ✅ Convert to plain object so IDs are strings + timestamps included
+    const plainMessage = newMessage.toObject();
+
     const receiverSocketId = getReceiverSocketId(receiverId);
     const senderSocketId = getReceiverSocketId(senderId);
 
-    // Emit to receiver
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit("newMessage", newMessage);
+      io.to(receiverSocketId).emit("newMessage", plainMessage);
     }
-
-    // Emit to sender
     if (senderSocketId) {
-      io.to(senderSocketId).emit("newMessage", newMessage);
+      io.to(senderSocketId).emit("newMessage", plainMessage);
     }
 
-    res.status(201).json(newMessage);
+    res.status(201).json(plainMessage);
   } catch (error) {
     console.log("Error in sendMessages:", error.message);
     return res.status(500).json({ message: "Server Error" });
   }
 };
+
 

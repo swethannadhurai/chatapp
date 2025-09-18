@@ -3,7 +3,7 @@ import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 
-const BASE_URL = "https://chatapp-6dex.onrender.com/api";
+const BASE_URL = "https://chatapp-6dex.onrender.com";
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -89,32 +89,35 @@ export const useAuthStore = create((set, get) => ({
   },
 
 connectSocket: () => {
-  const { authUser, socket } = get();
-  if (!authUser || socket?.connected) return;
+    const { authUser, socket } = get();
+    if (!authUser || socket?.connected) return;
 
-  const newSocket = io(BASE_URL, {
-    auth: { userId: authUser._id }, // use 'auth' instead of 'query'
-    transports: ["websocket"],      // force websocket transport
-  });
+    const newSocket = io(BASE_URL, {
+      auth: { userId: authUser._id }, // ✅ backend expects in `handshake.auth`
+      transports: ["websocket"],
+      withCredentials: true,
+    });
 
-  set({ socket: newSocket });
+    newSocket.on("connect", () => {
+      console.log("✅ Connected to Socket.IO server:", newSocket.id);
+    });
 
-  newSocket.on("connect", () => {
-    console.log("Connected to Socket.IO server", newSocket.id);
-  });
+    newSocket.on("getOnlineUsers", (userIds) => {
+      console.log("🔔 Online users:", userIds);
+      set({ onlineUsers: userIds });
+    });
 
-  newSocket.on("getOnlineUsers", (userIds) => {
-    set({ onlineUsers: userIds });
-  });
+    newSocket.on("disconnect", () => {
+      console.log("❌ Socket disconnected");
+    });
 
-  newSocket.on("disconnect", () => {
-    console.log("Socket disconnected");
-  });
-},
-
+    set({ socket: newSocket });
+  },
 
   disconnectSocket: () => {
-    if (get().socket?.connected) get().socket.disconnect();
+    const { socket } = get();
+    if (socket?.connected) socket.disconnect();
+    set({ socket: null, onlineUsers: [] });
   },
 }));
 

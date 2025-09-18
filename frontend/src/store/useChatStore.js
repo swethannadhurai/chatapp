@@ -35,13 +35,16 @@ export const useChatStore = create((set, get) => ({
   },
 
   sendMessage: async (messageData) => {
-    const { selectedUser, messages } = get();
+    const { selectedUser } = get();
     try {
       const res = await axiosInstance.post(
         `/messages/send/${selectedUser._id}`,
         messageData
       );
-      set({ messages: [...messages, res.data] });
+      // ✅ functional update to avoid stale state
+      set((state) => ({
+        messages: [...state.messages, res.data],
+      }));
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to send message");
     }
@@ -54,8 +57,10 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
     const authUser = useAuthStore.getState().authUser;
 
+    // ✅ prevent duplicate listeners
+    socket.off("newMessage");
+
     socket.on("newMessage", (newMessage) => {
-      // ✅ Check if this message belongs to the selected chat
       const isRelevantMessage =
         (newMessage.senderId.toString() === selectedUser._id.toString() &&
           newMessage.receiverId.toString() === authUser._id.toString()) ||
@@ -64,9 +69,10 @@ export const useChatStore = create((set, get) => ({
 
       if (!isRelevantMessage) return;
 
-      set({
-        messages: [...get().messages, newMessage],
-      });
+      // ✅ functional update
+      set((state) => ({
+        messages: [...state.messages, newMessage],
+      }));
     });
   },
 
@@ -77,3 +83,4 @@ export const useChatStore = create((set, get) => ({
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),
 }));
+
